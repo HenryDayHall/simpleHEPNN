@@ -1,6 +1,7 @@
 
 def flatten_and_label(data):
     import awkward as ak
+    import numpy as np
     names = list(data.keys())
     flat_parts = {name: [ak.ravel(part) for part in data[name]]
                   for name in data}
@@ -9,9 +10,12 @@ def flatten_and_label(data):
     for name in names[1:]:
         lens_name = tuple(len(part) for part in flat_parts[name])
         assert lens == lens_name, f"Different lengths in {name}, {lens}, {lens_name}"
-    data = {name: ak.concatenate(flat_parts[name]) for name in flat_parts}
+    attribute_names = sorted(flat_parts.keys())
+    inputs = np.hstack([ak.to_numpy(ak.concatenate(flat_parts[name])
+                                    ).astype(float).reshape((-1, 1))
+                        for name in attribute_names])
     labels = ak.concatenate([[i]*l for i, l in enumerate(lens)])
-    return labels, data
+    return attribute_names, labels, inputs
 
 
 def get_weights(labels):
@@ -23,7 +27,7 @@ def get_weights(labels):
     return weights
 
 
-def split(labels, weights, data, splits=[0.2, 'remainder']):
+def split(labels, weights, inputs, splits=[0.2, 'remainder']):
     import numpy as np
     total = len(labels)
     num_in_split = [int(total*s) if not s == 'remainder' else None
@@ -48,18 +52,28 @@ def split(labels, weights, data, splits=[0.2, 'remainder']):
     parts = []
     for a in range(len(splits)):
         mask = allocations == a
-        allocated_data = {name: values[mask] for name, values in
-                          data.items()}
-        parts.append((labels[mask], weights[mask], allocated_data))
+        parts.append((labels[mask], weights[mask], inputs[mask]))
     return parts
+
+
+def make_test_train(data):
+    attribute_names, labels, inputs = flatten_and_label(data)
+    weights = get_weights(labels)
+    (test_labels, test_weights, test_inputs), \
+            (train_labels, train_weight, train_inputs) =\
+            split(labels, weights, inputs)
+    return attribute_names, \
+            (test_labels, test_weights, test_inputs), \
+            (train_labels, train_weight, train_inputs)
+
 
 if __name__ == "__main__":
     import data_readers
     parts, data = data_readers.read()
-    labels, data = flatten_and_label(data)
+    attribute_names, labels, inputs = flatten_and_label(data)
     weights = get_weights(labels)
-    (test_labels, test_weights, test_data), \
-            (train_labels, train_weight, train_data) =\
-            split(labels, weights, data)
+    (test_labels, test_weights, test_inputs), \
+            (train_labels, train_weight, train_inputs) =\
+            split(labels, weights, inputs)
 
 

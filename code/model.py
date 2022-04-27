@@ -1,7 +1,7 @@
 from torch import nn as _nn
 
 class NeuralNetwork(_nn.Module):
-    def __init__(self, n_inputs, n_outputs=1):
+    def __init__(self, n_inputs, n_outputs=2):
         super(NeuralNetwork, self).__init__()
         self.linear_relu_stack = _nn.Sequential(
             _nn.Linear(n_inputs, 512),
